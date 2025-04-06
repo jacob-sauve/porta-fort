@@ -11,13 +11,13 @@ ti.init(arch=ti.gpu)
 # Simulation parameters
 n_particles = int(input("Number of particles: "))
 dt = 1e-3
-domain_size = 1.0
+domain_size = 1.0 # scaled, this represents 4.1 metres
 compression_strength = 1.68e6  # Pa (for particle repulsion)
 damping = 0.98
 EPSILON = 1e-5
 
 # Airbag parameters
-max_airbag_radius = 0.2  # Maximum airbag radius (scaled)
+max_airbag_radius = 3.6/4.1  # Maximum airbag radius (scaled)
 airbag_center = ti.Vector.field(2, dtype=ti.f32, shape=())
 airbag_radius = ti.field(dtype=ti.f32, shape=())  # airbag radius, to grow over time
 
@@ -26,6 +26,8 @@ radius = ti.field(dtype=ti.f32, shape=())  # Particle size
 x = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
 v = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
 f = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
+
+mass = 1.0 # arbitrary, mass of each particle
 
 # ---------------------------------------------------
 # Kernels
