@@ -120,7 +120,8 @@ def compute_overlap_error():
     max_overlap_error = 0.0
     for i in range(n_particles):
         for j in range(i + 1, n_particles):
-            dx = x[j] - x[i]
+            # Access vector components manually outside Taichi scope
+            dx = x[i] - x[j]
             dist = dx.norm()
             if dist < neighbor_radius:
                 overlap = neighbor_radius - dist
