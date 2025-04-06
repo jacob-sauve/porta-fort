@@ -1,2 +1,5 @@
 # porta-fort
-Realistic Python snow particle physics simulation for use in a simulation for the Porta-Fort. Based on the thesis "Real-time Snow Simulator using Iterative-relaxation and Boundary Handling" by Nordin &amp; Nylén (DOI: 10.2312/pgv.20221062)
+Simplified 2D Python snow particle physics simulation for use in a simulation for the Porta-Fort.
+
+## Install Dependencies
+    pip3 install -r requirements.txt
