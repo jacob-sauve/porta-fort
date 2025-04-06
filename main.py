@@ -116,8 +116,7 @@ def iterative_solver():
         v[i] = velocity_star[i]
         x[i] = position_star[i]
 
-@ti.kernel
-def compute_overlap_error() -> ti.f32:
+def compute_overlap_error():
     max_overlap_error = 0.0
     for i in range(n_particles):
         for j in range(i + 1, n_particles):
@@ -125,7 +124,7 @@ def compute_overlap_error() -> ti.f32:
             dist = dx.norm()
             if dist < neighbor_radius:
                 overlap = neighbor_radius - dist
-                max_overlap_error = ti.max(max_overlap_error, overlap / neighbor_radius)
+                max_overlap_error = max(max_overlap_error, overlap / neighbor_radius)
     return max_overlap_error
 
 @ti.kernel
