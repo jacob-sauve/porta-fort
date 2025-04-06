@@ -13,3 +13,5 @@ To start the simulation, run:
 ```
 python3.10 main.py
 ```
+With 8000 particles of radius 3 cm and an airbag expansion rate of 2 m/s, the following results are obtained:
+![Animated simulation results with 8000 particles of radius 3 cm and airbag expansion rate of 2 m/s](/img/simulation_10K_3E-2_2.gif)
