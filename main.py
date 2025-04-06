@@ -10,7 +10,7 @@ from matplotlib.widgets import Slider
 ti.init(arch=ti.gpu)
 
 # Simulation parameters
-n_particles = 3000
+n_particles = int(input("Number of particles: "))
 dt = 1e-3
 radius = 0.005
 mass = 1.0
@@ -105,7 +105,7 @@ initialize()
 # List to store simulation frames (particle positions)
 frames = []
 save_interval = 20  # Save 1 out of every 20 frames
-num_sim_frames = 1000  # Total simulation steps (adjust as needed)
+num_sim_frames = int(input("Maximal simulated frames: "))  # Total simulation steps (adjust as needed)
 
 for frame in range(num_sim_frames):
     compute_external_forces()
