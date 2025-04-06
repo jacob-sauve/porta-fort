@@ -14,6 +14,7 @@ snow_strength = 1.68e6  # Pa (compressive strength of snow)
 domain_size = 1.0
 neighbor_radius = 3 * radius
 damping = 0.98
+EPSILON = 1e-5 # to prevent division by 0 errors
 
 # Particle data
 x = np.zeros((n_particles, 2))  # Particle positions
@@ -50,7 +51,7 @@ def calculate_external_forces():
         dx = x[i] - airbag_center
         r = np.linalg.norm(dx)
         if r < 0.2:  # Radius of influence of the airbag (can adjust this value)
-            pressure_force = dx / r * airbag_pressure / (r + 1e-5)
+            pressure_force = dx / r * airbag_pressure / (r + EPSILON)
             f[i] += pressure_force  # Apply the airbag force to the particle
 
 # Compression forces between particles
@@ -64,7 +65,7 @@ def compute_snow_forces():
             dist = distance(i, j)
             if dist < neighbor_radius:
                 dx = x[j] - x[i]
-                dir = dx / dist  # Direction
+                dir = dx / (dist + EPSILON)  # Direction
                 overlap = neighbor_radius - dist
                 force_magnitude = overlap * 1e5  # Adjust stiffness
                 force_magnitude = min(force_magnitude, snow_strength * radius**2)
