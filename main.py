@@ -38,7 +38,6 @@ def initialize():
     grid_x = int(ti.sqrt(n_particles))
     
     # Adjust the radius based on the number of particles
-    global radius
     radius[None] = 0.005 * (1.0 / ti.sqrt(n_particles))  # Increases radius if fewer particles
     
     # Position particles in the bottom two-thirds of the domain
