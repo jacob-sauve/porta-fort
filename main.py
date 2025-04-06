@@ -67,7 +67,7 @@ def compute_compression_forces():
                 dir = dx.normalized()
                 overlap = neighbor_radius - dist
                 # Linear repulsion (adjust 1e5 as stiffness parameter)
-                var force_magnitude = overlap * 1e5
+                force_magnitude = overlap * 1e5
                 force_magnitude = ti.min(force_magnitude, compression_strength * radius * radius)
                 f[i] -= dir * force_magnitude
                 f[j] += dir * force_magnitude
