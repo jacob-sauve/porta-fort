@@ -86,16 +86,6 @@ def update_forces():
                 accumulated_force[i] -= dir * force_magnitude
                 accumulated_force[j] += dir * force_magnitude
 
-    # Apply boundary forces (handling particle-wall collisions)
-    for i in range(n_particles):
-        for d in ti.static(range(2)):  # Check boundary conditions
-            if x[i][d] < 0:
-                x[i][d] = 0
-                accumulated_force[i][d] *= -0.3
-            elif x[i][d] > domain_size:
-                x[i][d] = domain_size
-                accumulated_force[i][d] *= -0.3
-
 @ti.kernel
 def iterative_solver():
     # Iterative process to refine positions and forces
@@ -162,9 +152,10 @@ while gui.running:
 
     # Apply forces, update positions, etc.
     apply_external_forces()
-    find_neighbors()
-    iterative_solver()
-    integrate()
+    find_neighbors()  # Find neighbors outside kernel loop
+    update_forces()   # Update forces outside kernel loop
+    iterative_solver()  # Refine positions and forces
+    integrate()  # Finalize the velocity and positions
 
     # Visualize the particles
     positions = x.to_numpy()
