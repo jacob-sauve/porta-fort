@@ -13,7 +13,7 @@ ti.init(arch=ti.gpu)
 dt = 1e-4
 n_particles = int(input("Number of particles: "))
 domain_width = 6.0 # metres
-domain_height = 6.0 # metres
+domain_height = 8.0 # metres
 particle_radius = float(input("Particle radius (metres): ")) 
 mass = 0.02
 g = 9.81
@@ -28,7 +28,8 @@ v = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
 f = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
 
 # airbag starts 1.8 metres (1 radius) deep, as per port-a-fort specifications
-airbag_center = ti.Vector([domain_width / 2, domain_height - max_airbag_radius])
+snow_depth = particle_radius * n_particles / (domain_width / particle_radius) # n_particles over particles/row = n_rows, times p_radius = snow depth
+airbag_center = ti.Vector([domain_width / 2, -(domain_height - snow_depth) - max_airbag_radius]) # airbag starts 1 radius below snow line
 airbag_radius = ti.field(dtype=ti.f32, shape=())
 airbag_expansion_rate = ti.field(dtype=ti.f32, shape=())
 
@@ -139,5 +140,5 @@ def update(val):
     fig.canvas.draw_idle()
 
 slider.on_changed(update)
-fig.set_size_inches(6, 6) # lock figure size to square for representative plotting
+fig.set_size_inches(domain_width, domain_height) # lock figure size for representative plotting
 plt.show()
