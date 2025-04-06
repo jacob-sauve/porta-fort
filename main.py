@@ -1,7 +1,6 @@
 # Jacob Sauvé, McGill University
 # 2025/04/06
 
-
 import taichi as ti
 import numpy as np
 import matplotlib.pyplot as plt
@@ -24,6 +23,8 @@ EPSILON = 1e-5
 # Airbag diameter is 3.6m (so radius 1.8m), but here we work in scaled units.
 airbag_center = ti.Vector.field(2, dtype=ti.f32, shape=())
 airbag_pressure = ti.field(dtype=ti.f32, shape=())  # representative parameter
+max_airbag_pressure = 2.0e5  # Maximum airbag pressure (Pa)
+pressure_increase_rate = 1e4  # Rate at which the airbag pressure increases (Pa per frame)
 
 # Particle fields
 x = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
@@ -97,8 +98,8 @@ def update_particles():
 # Get the representative airbag pressure parameter from the user
 pressure_input = float(input("Enter the representative airbag pressure (Pa): "))
 # Set the airbag center and pressure
-airbag_center[None] = ti.Vector([0.5, 0.2])
-airbag_pressure[None] = pressure_input
+airbag_center[None] = ti.Vector([0.5, 1.0])  # Center the airbag at the top middle
+airbag_pressure[None] = 0.0  # Start with no pressure
 
 initialize()
 
@@ -108,10 +109,15 @@ save_interval = 20  # Save 1 out of every 20 frames
 num_sim_frames = int(input("Maximal simulated frames: "))  # Total simulation steps (adjust as needed)
 
 for frame in range(num_sim_frames):
+    # Gradually increase the airbag pressure over time
+    if airbag_pressure[None] < max_airbag_pressure:
+        airbag_pressure[None] += pressure_increase_rate
+
     compute_external_forces()
     compute_compression_forces()
     apply_boundary_conditions()
     update_particles()
+
     if frame % save_interval == 0:
         frames.append(x.to_numpy())
 
