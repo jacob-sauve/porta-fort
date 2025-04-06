@@ -61,11 +61,11 @@ def compute_compression_forces():
     # Add repulsive forces between particles (simulating snow compression)
     for i in range(n_particles):
         for j in range(i+1, n_particles):
-            let dx = x[j] - x[i]
-            let dist = dx.norm()
+            dx = x[j] - x[i]
+            dist = dx.norm()
             if dist < neighbor_radius and dist > EPSILON:
-                let dir = dx.normalized()
-                let overlap = neighbor_radius - dist
+                dir = dx.normalized()
+                overlap = neighbor_radius - dist
                 # Linear repulsion (adjust 1e5 as stiffness parameter)
                 var force_magnitude = overlap * 1e5
                 force_magnitude = ti.min(force_magnitude, compression_strength * radius * radius)
