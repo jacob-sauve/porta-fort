@@ -11,22 +11,18 @@ ti.init(arch=ti.gpu)
 # Simulation parameters
 n_particles = int(input("Number of particles: "))
 dt = 1e-3
-radius = 0.005
-mass = 1.0
 domain_size = 1.0
-neighbor_radius = 3 * radius
-compression_strength = 1.68e6  # Pa
+compression_strength = 1.68e6  # Pa (for particle repulsion)
 damping = 0.98
 EPSILON = 1e-5
 
 # Airbag parameters
-# Airbag diameter is 3.6m (so radius 1.8m), but here we work in scaled units.
+max_airbag_radius = 0.2  # Maximum airbag radius (scaled)
 airbag_center = ti.Vector.field(2, dtype=ti.f32, shape=())
-airbag_pressure = ti.field(dtype=ti.f32, shape=())  # representative parameter
-max_airbag_pressure = 2.0e5  # Maximum airbag pressure (Pa)
-pressure_increase_rate = 1e4  # Rate at which the airbag pressure increases (Pa per frame)
+airbag_radius = ti.field(dtype=ti.f32, shape=())  # airbag radius, to grow over time
 
 # Particle fields
+radius = ti.field(dtype=ti.f32, shape=())  # Particle size
 x = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
 v = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
 f = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
@@ -38,9 +34,18 @@ f = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
 @ti.kernel
 def initialize():
     grid_x = int(ti.sqrt(n_particles))
+    
+    # Adjust the radius based on the number of particles
+    global radius
+    radius[None] = 0.005 * (1.0 / ti.sqrt(n_particles))  # Increases radius if fewer particles
+    
+    # Position particles in the bottom two-thirds of the domain
     for i in range(n_particles):
-        x[i] = ti.Vector([ (i % grid_x) * radius * 2 + 0.05,
-                           (i // grid_x) * radius * 2 + 0.05 ])
+        x[i] = ti.Vector([ (i % grid_x) * radius[None] * 2 + 0.05,
+                           (i // grid_x) * radius[None] * 2 + 0.05 ])
+        # Restrict particles to the bottom 2/3 of the domain
+        x[i][1] = ti.min(x[i][1], 0.66 * domain_size)
+        
         v[i] = ti.Vector([0.0, 0.0])
         f[i] = ti.Vector([0.0, 0.0])
 
@@ -49,13 +54,16 @@ def compute_external_forces():
     for i in range(n_particles):
         # Gravity force (downward)
         f[i] = ti.Vector([0.0, -9.81 * mass])
-        # Airbag force: if particle is within airbag influence (here r < 0.2 in scaled units)
+        
+        # Airbag force: Repulsion if particle is within the expanding airbag radius
         ac = airbag_center[None]
         dx = x[i] - ac
         r = dx.norm()
-        if r < 0.2 and r > EPSILON:
-            # The force is proportional to the input pressure and inversely to distance.
-            f[i] += dx.normalized() * airbag_pressure[None] / (r + EPSILON)
+        
+        if r < airbag_radius[None] and r > EPSILON:
+            # Repulsive force is proportional to how far inside the airbag's radius the particle is
+            force_magnitude = 1e4 * (airbag_radius[None] - r)  # Stiffness of repulsion
+            f[i] += dx.normalized() * force_magnitude
 
 @ti.kernel
 def compute_compression_forces():
@@ -64,12 +72,12 @@ def compute_compression_forces():
         for j in range(i+1, n_particles):
             dx = x[j] - x[i]
             dist = dx.norm()
-            if dist < neighbor_radius and dist > EPSILON:
+            if dist < radius[None] * 3 and dist > EPSILON:
                 dir = dx.normalized()
-                overlap = neighbor_radius - dist
+                overlap = radius[None] * 3 - dist
                 # Linear repulsion (adjust 1e5 as stiffness parameter)
                 force_magnitude = overlap * 1e5
-                force_magnitude = ti.min(force_magnitude, compression_strength * radius * radius)
+                force_magnitude = ti.min(force_magnitude, compression_strength * radius[None] * radius[None])
                 f[i] -= dir * force_magnitude
                 f[j] += dir * force_magnitude
 
@@ -95,11 +103,10 @@ def update_particles():
 # Main simulation loop (runs on CPU, calling Taichi kernels)
 # ---------------------------------------------------
 
-# Get the representative airbag pressure parameter from the user
-pressure_input = float(input("Enter the representative airbag pressure (Pa): "))
-# Set the airbag center and pressure
-airbag_center[None] = ti.Vector([0.5, 1.0])  # Center the airbag at the top middle
-airbag_pressure[None] = 0.0  # Start with no pressure
+# Get the representative airbag expansion rate from the user
+expansion_rate = float(input("Enter the airbag expansion rate (m/s): "))
+airbag_radius[None] = 0.0  # Start with a small airbag radius
+airbag_center[None] = ti.Vector([0.5, 1.0])  # Airbag center, 1.8 meters below the surface
 
 initialize()
 
@@ -109,9 +116,12 @@ save_interval = 20  # Save 1 out of every 20 frames
 num_sim_frames = int(input("Maximal simulated frames: "))  # Total simulation steps (adjust as needed)
 
 for frame in range(num_sim_frames):
-    # Gradually increase the airbag pressure over time
-    if airbag_pressure[None] < max_airbag_pressure:
-        airbag_pressure[None] += pressure_increase_rate
+    # Increase the airbag radius progressively
+    airbag_radius[None] += expansion_rate * dt
+    
+    # Ensure airbag doesn't grow beyond the maximum size
+    if airbag_radius[None] > max_airbag_radius:
+        airbag_radius[None] = max_airbag_radius
 
     compute_external_forces()
     compute_compression_forces()
