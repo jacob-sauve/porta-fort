@@ -4,7 +4,7 @@ Simplified 2D Python snow particle physics simulation for use in a simulation fo
 ## Install Dependencies
 In the terminal, run:
 ```
-python3 -m venv ./venv
+python3.10 -m venv ./venv
 source ./venv/bin/activate
-python3 -m pip install -r requirements.txt
+python3.10 -m pip install -r requirements.txt
 ```
