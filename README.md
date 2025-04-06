@@ -8,6 +8,7 @@ In the terminal, run:
 chmod +x setup.sh
 ./setup.sh
 ```
+## Run the Simulation
 To run the simulation, run:  
 ```
 python3.10 main.py
