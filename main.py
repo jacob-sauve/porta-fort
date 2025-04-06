@@ -13,7 +13,7 @@ ti.init(arch=ti.gpu)
 dt = 1e-4
 n_particles = int(input("Number of particles: "))
 domain_width = 6.0 # metres
-domain_height = 4.1 # metres
+domain_height = 6.0 # metres
 particle_radius = float(input("Particle radius (metres): ")) 
 mass = 0.02
 g = 9.81
@@ -139,4 +139,5 @@ def update(val):
     fig.canvas.draw_idle()
 
 slider.on_changed(update)
+fig.set_size_inches(6, 6) # lock figure size to square for representative plotting
 plt.show()
