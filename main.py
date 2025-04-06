@@ -28,8 +28,9 @@ v = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
 f = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
 
 # airbag starts 1.8 metres (1 radius) deep, as per port-a-fort specifications
-snow_depth = particle_radius * n_particles / (domain_width / particle_radius) # n_particles over particles/row = n_rows, times p_radius = snow depth
-airbag_center = ti.Vector([domain_width / 2, -(domain_height - snow_depth) - max_airbag_radius]) # airbag starts 1 radius below snow line
+snow_depth = 4 * particle_radius * n_particles / (domain_width / particle_radius) # n_particles over particles/row = n_rows, times p_radius = snow depth, *4 empirically
+print(f"{snow_depth=}")
+airbag_center = ti.Vector([domain_width / 2, snow_depth - max_airbag_radius]) # airbag starts 1 radius below snow line
 airbag_radius = ti.field(dtype=ti.f32, shape=())
 airbag_expansion_rate = ti.field(dtype=ti.f32, shape=())
 
