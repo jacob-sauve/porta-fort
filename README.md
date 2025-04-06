@@ -3,7 +3,7 @@ Simplified 2D Python snow particle physics simulation for use in a simulation fo
 
 ## Install Dependencies and Initialise venv
 To be able to run the [Taichi engine](https://pypi.org/project/taichi/) for the simulation, make sure that you have [Python 3.10](https://www.python.org/downloads/release/python-31016/) installed.  
-In the terminal, run:  
+Then, in the terminal, run:  
 ```
 chmod +x setup.sh
 ./setup.sh
