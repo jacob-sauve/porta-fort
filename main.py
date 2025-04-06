@@ -22,6 +22,10 @@ f = np.zeros((n_particles, 2))  # Forces on particles
 compression_force = np.zeros((n_particles, 2))  # Compression forces
 accumulated_force = np.zeros((n_particles, 2))  # Accumulated forces
 
+# Airbag parameters
+airbag_center = np.array([0.5, 0.5])  # Airbag center location
+airbag_pressure = 1.0e5  # Initial airbag pressure (in Pascals)
+
 # Helper function for calculating distance
 def distance(i, j):
     return np.linalg.norm(x[i] - x[j])
@@ -40,6 +44,14 @@ def calculate_external_forces():
     # Gravity force (downward)
     gravity = np.array([0.0, -9.81]) * mass
     f += gravity  # Apply gravity to all particles
+
+    # Apply airbag force
+    for i in range(n_particles):
+        dx = x[i] - airbag_center
+        r = np.linalg.norm(dx)
+        if r < 0.2:  # Radius of influence of the airbag (can adjust this value)
+            pressure_force = dx / r * airbag_pressure / (r + 1e-5)
+            f[i] += pressure_force  # Apply the airbag force to the particle
 
 # Compression forces between particles
 def compute_snow_forces():
@@ -101,6 +113,9 @@ def iterative_solver():
         
         iter_count += 1
 
+        if iter_count % 10 == 0:
+            visualize()
+
 # Visualization using Matplotlib
 def visualize():
     plt.figure(figsize=(6, 6))
@@ -115,5 +130,8 @@ initialize()
 # Running the simulation for a set number of iterations
 for _ in range(100):  # 100 iterations as an example
     iterative_solver()
-    visualize()
+    # visualize() # commented-out since this occurs within the solver now every 10 iterations
+
+    # Increase airbag pressure over time (simulate inflation)
+    airbag_pressure += 5000  # Increment pressure at each step
 
