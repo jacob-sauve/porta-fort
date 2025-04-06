@@ -103,7 +103,7 @@ airbag_expansion_rate[None] = rate
 airbag_radius[None] = initial_airbag_radius
 
 expand_duration = (max_airbag_radius - initial_airbag_radius) / rate
-expand_frame_end = int(expand_duration / dt) + 20
+expand_frame_end = int(expand_duration / dt) + 1750
 
 initialize()
 
