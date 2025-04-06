@@ -49,7 +49,7 @@ def compute_external_forces():
         # Gravity force (downward)
         f[i] = ti.Vector([0.0, -9.81 * mass])
         # Airbag force: if particle is within airbag influence (here r < 0.2 in scaled units)
-        let ac = airbag_center[None]
+        ac = airbag_center[None]
         dx = x[i] - ac
         r = dx.norm()
         if r < 0.2 and r > EPSILON:
