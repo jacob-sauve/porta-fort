@@ -1,135 +1,136 @@
 # Jacob Sauvé, McGill University
 # 2025/04/06
 
+
+import taichi as ti
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
-import time
 
-# Parameters for the simulation
+ti.init(arch=ti.gpu)
+
+# Simulation parameters
 n_particles = 3000
-radius = 0.005  # Radius of each snow particle
-mass = 1.0  # Mass of each particle
-domain_size = 1.0  # Size of the simulation domain
-neighbor_radius = 3 * radius  # Neighbor radius for snow interaction
+dt = 1e-3
+radius = 0.005
+mass = 1.0
+domain_size = 1.0
+neighbor_radius = 3 * radius
+compression_strength = 1.68e6  # Pa
+damping = 0.98
 EPSILON = 1e-5
-compression_strength = 1.68e6  # Pa (compressive strength of snow)
 
-# Airbag and simulation settings
-airbag_diameter = 3.6  # meters
-airbag_radius = airbag_diameter / 2
-airbag_center = np.array([0.5, 0.2])  # Center of the airbag
-airbag_pressure = 0.0  # Initial airbag pressure (input by user)
+# Airbag parameters
+# Airbag diameter is 3.6m (so radius 1.8m), but here we work in scaled units.
+airbag_center = ti.Vector.field(2, dtype=ti.f32, shape=())
+airbag_pressure = ti.field(dtype=ti.f32, shape=())  # representative parameter
 
-# Particle data
-x = np.random.rand(n_particles, 2) * domain_size  # Random initial positions
-v = np.zeros_like(x)  # Initial velocities
-f = np.zeros_like(x)  # Forces
-compression_forces = np.zeros_like(x)  # Compression forces
-accumulated_forces = np.zeros_like(x)  # Accumulated forces
+# Particle fields
+x = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
+v = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
+f = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
 
-# Array to store frames for slider
-frames = []
+# ---------------------------------------------------
+# Kernels
+# ---------------------------------------------------
 
-# Get airbag pressure from user
-airbag_pressure_input = float(input("Enter the airbag pressure (Pa): "))
-
-# Calculate the force produced by the airbag based on input pressure
-def compute_forces():
-    global f, compression_forces, accumulated_forces
-    # Reset forces
-    f.fill(0)
-    compression_forces.fill(0)
-    accumulated_forces.fill(0)
-    
-    # External forces (gravity, airbag)
+@ti.kernel
+def initialize():
+    grid_x = int(ti.sqrt(n_particles))
     for i in range(n_particles):
-        # Airbag force (similar to before)
-        dx = x[i] - airbag_center
-        r = np.linalg.norm(dx)
-        if r < airbag_radius:  # Airbag influence
-            pressure_force = dx / r * airbag_pressure / (r + EPSILON)
-            f[i] += pressure_force  # Apply the airbag force to the particle
-        
-    # Particle interaction forces (snow compression)
+        x[i] = ti.Vector([ (i % grid_x) * radius * 2 + 0.05,
+                           (i // grid_x) * radius * 2 + 0.05 ])
+        v[i] = ti.Vector([0.0, 0.0])
+        f[i] = ti.Vector([0.0, 0.0])
+
+@ti.kernel
+def compute_external_forces():
     for i in range(n_particles):
-        for j in range(i + 1, n_particles):
-            dx = x[j] - x[i]
-            dist = np.linalg.norm(dx)
+        # Gravity force (downward)
+        f[i] = ti.Vector([0.0, -9.81 * mass])
+        # Airbag force: if particle is within airbag influence (here r < 0.2 in scaled units)
+        let ac = airbag_center[None]
+        dx = x[i] - ac
+        r = dx.norm()
+        if r < 0.2 and r > EPSILON:
+            # The force is proportional to the input pressure and inversely to distance.
+            f[i] += dx.normalized() * airbag_pressure[None] / (r + EPSILON)
+
+@ti.kernel
+def compute_compression_forces():
+    # Add repulsive forces between particles (simulating snow compression)
+    for i in range(n_particles):
+        for j in range(i+1, n_particles):
+            let dx = x[j] - x[i]
+            let dist = dx.norm()
             if dist < neighbor_radius and dist > EPSILON:
-                dir = dx / dist
-                overlap = neighbor_radius - dist
-                # Linear repulsive force proportional to overlap
-                force_magnitude = overlap * 1e5  # Adjust stiffness
-                force_magnitude = min(force_magnitude, compression_strength * radius**2)
-                compression_forces[i] -= dir * force_magnitude
-                compression_forces[j] += dir * force_magnitude
+                let dir = dx.normalized()
+                let overlap = neighbor_radius - dist
+                # Linear repulsion (adjust 1e5 as stiffness parameter)
+                var force_magnitude = overlap * 1e5
+                force_magnitude = ti.min(force_magnitude, compression_strength * radius * radius)
+                f[i] -= dir * force_magnitude
+                f[j] += dir * force_magnitude
 
-    # Apply boundary forces and snow forces (compression)
+@ti.kernel
+def apply_boundary_conditions():
     for i in range(n_particles):
-        # Apply boundary forces
-        for d in range(2):
+        for d in ti.static(range(2)):
             if x[i][d] < 0:
                 x[i][d] = 0
                 v[i][d] *= -0.3
             elif x[i][d] > domain_size:
                 x[i][d] = domain_size
                 v[i][d] *= -0.3
-        
-        # Apply compression forces
-        accumulated_forces[i] += compression_forces[i]
 
-def update():
-    global x, v
+@ti.kernel
+def update_particles():
     for i in range(n_particles):
-        # Estimate new velocity
-        v_star = v[i] + (f[i] + accumulated_forces[i]) * 1e-3 / mass
-        # Estimate new position
-        x_star = x[i] + v_star * 1e-3
-        x[i] = x_star
-        v[i] = v_star
+        v[i] += (f[i] / mass) * dt
+        v[i] *= damping
+        x[i] += v[i] * dt
 
-# Create the plot
+# ---------------------------------------------------
+# Main simulation loop (runs on CPU, calling Taichi kernels)
+# ---------------------------------------------------
+
+# Get the representative airbag pressure parameter from the user
+pressure_input = float(input("Enter the representative airbag pressure (Pa): "))
+# Set the airbag center and pressure
+airbag_center[None] = ti.Vector([0.5, 0.2])
+airbag_pressure[None] = pressure_input
+
+initialize()
+
+# List to store simulation frames (particle positions)
+frames = []
+save_interval = 20  # Save 1 out of every 20 frames
+num_sim_frames = 1000  # Total simulation steps (adjust as needed)
+
+for frame in range(num_sim_frames):
+    compute_external_forces()
+    compute_compression_forces()
+    apply_boundary_conditions()
+    update_particles()
+    if frame % save_interval == 0:
+        frames.append(x.to_numpy())
+
+# ---------------------------------------------------
+# Visualization with matplotlib slider
+# ---------------------------------------------------
 fig, ax = plt.subplots()
 ax.set_xlim(0, domain_size)
 ax.set_ylim(0, domain_size)
+scat = ax.scatter(frames[0][:, 0], frames[0][:, 1], s=2, c='blue')
 
-# Plot particles
-scatter = ax.scatter(x[:, 0], x[:, 1], s=5)
+def update_plot(val):
+    idx = int(val)
+    scat.set_offsets(frames[idx])
+    fig.canvas.draw_idle()
 
-# Simulation main loop with frame saving
-def simulate():
-    global airbag_pressure, frames
-    overlap_error = 1.0
-    iter_count = 0
-    frame_step = 20  # Save 1 out of every 20 frames
-
-    while iter_count < 500:  # Run for 500 iterations or adjust as needed
-        airbag_pressure = airbag_pressure_input * (iter_count / 500.0)  # Ramp up pressure
-        
-        for frame in range(1000):  # Simulate for 1000 frames (or adjust as needed)
-            compute_forces()  # Calculate forces
-            update()  # Update particle positions
-            if frame % frame_step == 0:  # Save every 20th frame
-                frames.append(np.copy(x))
-        
-        iter_count += 1
-
-simulate()
-
-# Function to display frames based on slider value
-def update_frame(val):
-    frame = int(val)
-    scatter.set_offsets(frames[frame])
-    plt.draw()
-
-# Create the slider to iterate through frames
-ax_frame_slider = plt.axes([0.1, 0.05, 0.8, 0.03], facecolor='lightgoldenrodyellow')
-frame_slider = Slider(ax_frame_slider, 'Frame', 0, len(frames)-1, valinit=0, valstep=1)
-
-frame_slider.on_changed(update_frame)
-
-# Display the initial frame
-update_frame(0)
+ax_slider = plt.axes([0.1, 0.05, 0.8, 0.03])
+slider = Slider(ax_slider, 'Frame', 0, len(frames)-1, valinit=0, valstep=1)
+slider.on_changed(update_plot)
 
 plt.show()
+
