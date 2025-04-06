@@ -1,91 +1,103 @@
 # Jacob Sauvé, McGill University
 # 2025/04/06
 
+
+import taichi as ti
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+
+ti.init(arch=ti.gpu)  # Use GPU for performance, fallback to CPU if needed
 
 # Simulation parameters
-n_particles_x = 50
-n_particles_y = 30
-spacing = 0.02
-radius = 0.01
+n_particles = 3000
+dt = 1e-3
+radius = 0.005
 mass = 1.0
-dt = 0.01
+snow_strength = 1.68e6  # Pa (compressive strength of snow)
+airbag_pressure = ti.field(dtype=ti.f32, shape=())
+airbag_center = ti.Vector.field(2, dtype=ti.f32, shape=())
+
+# Particle data
+x = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
+v = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
+f = ti.Vector.field(2, dtype=ti.f32, shape=n_particles)
+
+# Constants
 damping = 0.98
-snow_strength = 1.68e6  # Pa, compressive strength
-airbag_center = np.array([0.5, 0.3])
-airbag_pressure = 0.0  # increases over time
-airbag_radius = 0.15
+domain_size = 1.0
+neighbor_radius = 3 * radius
 
-# Initialize particles
-num_particles = n_particles_x * n_particles_y
-positions = np.zeros((num_particles, 2))
-velocities = np.zeros_like(positions)
-forces = np.zeros_like(positions)
+@ti.kernel
+def initialize():
+    for i in range(n_particles):
+        grid_x = int(ti.sqrt(n_particles))
+        x[i] = [
+            (i % grid_x) * radius * 2 + 0.05,
+            (i // grid_x) * radius * 2 + 0.05
+        ]
+        v[i] = [0.0, 0.0]
+        f[i] = [0.0, 0.0]
 
-for i in range(n_particles_y):
-    for j in range(n_particles_x):
-        index = i * n_particles_x + j
-        positions[index] = [j * spacing + 0.1, i * spacing + 0.1]
-
+@ti.kernel
 def compute_forces():
-    global forces
-    forces.fill(0)
+    for i in range(n_particles):
+        f[i] = [0.0, 0.0]  # Reset forces
 
-    for i in range(num_particles):
-        for j in range(i + 1, num_particles):
-            dx = positions[j] - positions[i]
-            dist = np.linalg.norm(dx)
-            if 1e-5 < dist < 3 * radius:
-                overlap = 3 * radius - dist
-                direction = dx / dist
-                force_mag = min(overlap * 1e5, snow_strength * radius**2)
-                force = force_mag * direction
-                forces[i] -= force
-                forces[j] += force
+    for i in range(n_particles):
+        for j in range(i + 1, n_particles):
+            dx = x[j] - x[i]
+            dist = dx.norm()
+            if dist < neighbor_radius and dist > 1e-5:
+                dir = dx.normalized()
+                overlap = neighbor_radius - dist
+                # Linear repulsive force proportional to overlap
+                force_magnitude = overlap * 1e5  # adjust stiffness
+                # Clamp to snow compressive strength
+                force_magnitude = min(force_magnitude, snow_strength * radius**2)
+                f[i] -= dir * force_magnitude
+                f[j] += dir * force_magnitude
 
+@ti.kernel
 def apply_airbag():
-    global forces, airbag_pressure
-    for i in range(num_particles):
-        dx = positions[i] - airbag_center
-        dist = np.linalg.norm(dx)
-        if dist < airbag_radius:
-            direction = dx / (dist + 1e-5)
-            pressure_force = direction * airbag_pressure / (dist + 0.01)
-            forces[i] += pressure_force
+    for i in range(n_particles):
+        dx = x[i] - airbag_center[None]
+        r = dx.norm()
+        if r < 0.2:  # radius of influence
+            pressure_force = dx.normalized() * airbag_pressure[None] / (r + 1e-5)
+            f[i] += pressure_force
 
+@ti.kernel
 def update():
-    global positions, velocities
-    velocities += dt * forces / mass
-    velocities *= damping
-    positions += dt * velocities
+    for i in range(n_particles):
+        v[i] += dt * f[i] / mass
+        v[i] *= damping
+        x[i] += dt * v[i]
 
-    # Boundary conditions
-    for i in range(num_particles):
-        for d in range(2):
-            if positions[i, d] < 0.0:
-                positions[i, d] = 0.0
-                velocities[i, d] *= -0.3
-            elif positions[i, d] > 1.0:
-                positions[i, d] = 1.0
-                velocities[i, d] *= -0.3
+        # Simple boundary collision
+        for d in ti.static(range(2)):
+            if x[i][d] < 0:
+                x[i][d] = 0
+                v[i][d] *= -0.3
+            elif x[i][d] > domain_size:
+                x[i][d] = domain_size
+                v[i][d] *= -0.3
 
-# Set up plot
-fig, ax = plt.subplots(figsize=(6, 6))
-scat = ax.scatter(positions[:, 0], positions[:, 1], s=5, c='skyblue')
-ax.set_xlim(0, 1)
-ax.set_ylim(0, 1)
-ax.set_aspect('equal')
+# GUI
+initialize()
+gui = ti.GUI("Snow Simulation with Airbag", res=600, background_color=0x112F41)
 
-def animate(frame):
-    global airbag_pressure
-    airbag_pressure += 500  # Increase pressure each frame
+# Airbag initial state
+airbag_center[None] = ti.Vector([0.5, 0.2])
+airbag_pressure[None] = 0.0
+
+while gui.running:
+    # Increase pressure over time
+    airbag_pressure[None] += 1e3
+
     compute_forces()
     apply_airbag()
     update()
-    scat.set_offsets(positions)
-    return scat,
 
-ani = FuncAnimation(fig, animate, frames=300, interval=20, blit=True)
-plt.show()
+    positions = x.to_numpy()
+    gui.circles(positions, radius=2, color=0xAAAAFF)
+    gui.show()
+
