@@ -2,7 +2,7 @@
 Simplified 2D Python snow particle physics simulation for use in a simulation for the Porta-Fort.
 
 ## Install Dependencies
-If you have venv installed:
+If you have venv installed; i.e. if `python3 -m venv --help` displays help text and not an error:
 ```
 #!/bin/bash
 python3 -m venv venv
