@@ -102,8 +102,9 @@ rate = float(input("Enter the airbag expansion rate (m/s): "))
 airbag_expansion_rate[None] = rate
 airbag_radius[None] = initial_airbag_radius
 
+additional_frames = int(input("Number of frames after airbag expansion: "))
 expand_duration = (max_airbag_radius - initial_airbag_radius) / rate
-expand_frame_end = int(expand_duration / dt) + 20
+expand_frame_end = int(expand_duration / dt) + additional_frames
 
 initialize()
 
