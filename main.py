@@ -97,7 +97,7 @@ def update_particles():
 # Get the representative airbag pressure parameter from the user
 pressure_input = float(input("Enter the representative airbag pressure (Pa): "))
 # Set the airbag center and pressure
-airbag_center[None] = ti.Vector([domain_size / 2, domain_size - 1.8])  # 1.8 meters below the top
+airbag_center[None] = ti.Vector([0.5, 1.0])
 airbag_pressure[None] = pressure_input
 
 initialize()
