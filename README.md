@@ -2,6 +2,10 @@
 Simplified 2D Python snow particle physics simulation for use in a simulation for the Porta-Fort.  
 
 ## Install Dependencies and Initialise venv
+First, clone this repo to your computer:
+```
+git clone https://github.com/jacob-sauve/porta-fort.git
+```
 To be able to run the [Taichi engine](https://pypi.org/project/taichi/) for the simulation, make sure that you have [Python 3.10](https://www.python.org/downloads/release/python-31016/) installed.  
 Then, in the terminal, run:  
 ```
